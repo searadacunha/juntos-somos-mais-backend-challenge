@@ -52,7 +52,10 @@ def region_for_state(state: Any) -> Region | None:
 
 
 def normalize_gender(gender: Any) -> Gender | None:
-    """male -> M, female -> F. Anything else is unknown and stays None rather than guessed."""
+    """male or m gives M, female or f gives F, ignoring case and surrounding spaces.
+
+    Anything else is unknown and stays None rather than guessed.
+    """
     return _GENDERS.get(gender.strip().casefold()) if isinstance(gender, str) else None
 
 
@@ -65,17 +68,21 @@ def to_e164(phone: Any) -> str | None:
 
     - 10 or 11 digits are a Brazilian national number (area code + subscriber): "+55" is added.
     - A number that already carries 55, written "+55 ..." or "55 ...", is kept as it is.
-    - A number written with "+" and another calling code is kept as it is.
+    - A number written with "+" and another calling code is kept as it is when it has
+      6 digits (the shortest complete numbers in libphonenumber's metadata) to 15
+      (the E.164 maximum).
     - Any other digit count is incomplete or overlong: no number is produced.
-    - 11 digits starting with 0 can be a trunk prefix plus 10 digits, or an area code
-      plus 9 digits. The two readings give different numbers, so none is produced.
+    - A leading 0 is kept at 10 digits: area code plus 8 digits is the only reading
+      that gives a complete number, even though no Brazilian area code starts with 0
+      (checking area codes would be validation). At 11 digits it is refused: a trunk 0
+      plus 10 digits and an area code plus 9 digits are both complete, and they differ.
     """
     if not isinstance(phone, str) or not _PHONE.fullmatch(phone.strip()):
         return None
     digits = re.sub(r"[^0-9]", "", phone)
     written_with_plus = phone.strip().startswith("+")
     if written_with_plus and not digits.startswith(BRAZIL_CALLING_CODE):
-        return f"+{digits}" if 8 <= len(digits) <= 15 and digits[0] != "0" else None
+        return f"+{digits}" if 6 <= len(digits) <= 15 and digits[0] != "0" else None
     if written_with_plus or (len(digits) in (12, 13) and digits.startswith(BRAZIL_CALLING_CODE)):
         digits = digits[len(BRAZIL_CALLING_CODE) :]
     is_complete = len(digits) == 10 or (len(digits) == 11 and digits[0] != "0")

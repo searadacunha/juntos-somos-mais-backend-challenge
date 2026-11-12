@@ -71,7 +71,7 @@ def classify(latitude: Any, longitude: Any, rules: Sequence[Rule] = RULES) -> Cu
     """
     try:
         lat, lon = float(latitude), float(longitude)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):  # OverflowError: an integer too large for a float
         return CustomerType.LABORIOUS
     for customer_type, box in rules:
         if box.contains(lat, lon):

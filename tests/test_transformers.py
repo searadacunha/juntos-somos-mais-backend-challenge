@@ -54,6 +54,8 @@ CONVERTIBLE_PHONES = [
     pytest.param("(55) 3222-1234", "+555532221234", id="area-code-55-is-not-the-calling-code"),
     pytest.param("(01) 5415-5648", "+550154155648", id="dataset-area-code-starting-with-zero"),
     pytest.param("+1 305 555 0100", "+13055550100", id="foreign-number-keeps-its-calling-code"),
+    pytest.param("+43 1234", "+431234", id="foreign-six-digits-the-shortest-accepted"),
+    pytest.param("+123 456 789 012 345", "+123456789012345", id="foreign-fifteen-digits-the-e164-maximum"),
 ]
 
 
@@ -85,6 +87,7 @@ def test_to_e164_leaves_its_own_output_unchanged(phone, expected):
         pytest.param("++55 86 8370-9831", id="two-plus-signs"),
         pytest.param("+0 86 8370 9831", id="calling-code-starting-with-zero"),
         pytest.param("+1 23", id="foreign-and-too-short"),
+        pytest.param("+43 123", id="foreign-five-digits"),
         pytest.param("+1234567890123456", id="more-than-fifteen-digits"),
         pytest.param("٨٦٨٣٧٠٩٨٣١", id="digits-of-another-script"),
         pytest.param(None, id="missing"),
@@ -230,8 +233,18 @@ def test_coordinates_sent_as_numbers_are_classified_and_served_as_text():
     assert produced["location"]["coordinates"] == {"latitude": "-40.0", "longitude": "-10"}
 
 
+def test_a_coordinate_too_large_for_a_float_is_laborious_not_a_crash():
+    produced = as_json(raw_record(location__coordinates__latitude=10**400))
+    assert produced["type"] == "laborious"
+
+
 def test_a_date_with_another_offset_is_converted_to_utc():
     produced = as_json(raw_record(dob__date="1979-01-22T05:35:31+02:00"))
+    assert produced["birthday"] == "1979-01-22T03:35:31Z"
+
+
+def test_fractions_of_a_second_are_dropped_to_match_the_contract():
+    produced = as_json(raw_record(dob__date="1979-01-22T03:35:31.987Z"))
     assert produced["birthday"] == "1979-01-22T03:35:31Z"
 
 
@@ -244,12 +257,22 @@ def test_a_date_with_another_offset_is_converted_to_utc():
         pytest.param({"location": "somewhere"}, "location.street", id="location-is-not-an-object"),
         pytest.param({"location__postcode": "01310-100"}, "location.postcode", id="postcode-not-a-number"),
         pytest.param({"location__coordinates": MISSING}, "location.coordinates", id="coordinates-missing"),
+        pytest.param(
+            {"location__coordinates__latitude": None}, "location.coordinates.latitude", id="latitude-null"
+        ),
+        pytest.param(
+            {"location__coordinates__longitude": " "}, "location.coordinates.longitude", id="longitude-blank"
+        ),
         pytest.param({"picture__thumbnail": MISSING}, "picture.thumbnail", id="thumbnail-missing"),
         pytest.param({"dob": MISSING}, "birthday", id="date-of-birth-missing"),
         pytest.param({"dob__date": "22/01/1979"}, "birthday", id="date-in-another-format"),
         pytest.param({"dob__date": "1979-01-22T03:35:31"}, "birthday", id="date-without-utc-offset"),
         pytest.param({"registered__date": "1120225968"}, "registered", id="date-as-unix-timestamp-text"),
         pytest.param({"registered__date": 1120225968}, "registered", id="date-as-unix-timestamp-number"),
+        pytest.param({"dob__date": "0001-01-01T00:00:00+05:00"}, "birthday", id="date-before-year-1-in-utc"),
+        pytest.param(
+            {"registered__date": "9999-12-31T23:00:00-05:00"}, "registered", id="date-after-year-9999-in-utc"
+        ),
     ],
 )
 def test_a_record_that_cannot_fill_the_contract_is_refused(override, field):

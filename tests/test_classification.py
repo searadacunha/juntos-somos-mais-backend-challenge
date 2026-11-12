@@ -24,6 +24,12 @@ def test_rules_hold_the_three_published_boxes_in_priority_order():
     )
 
 
+def test_from_published_sorts_both_axes_whichever_corner_comes_first():
+    expected = BoundingBox(min_lat=0, max_lat=10, min_lon=0, max_lon=5)
+    assert BoundingBox.from_published(minlon=5, minlat=10, maxlon=0, maxlat=0) == expected
+    assert BoundingBox.from_published(minlon=0, minlat=0, maxlon=5, maxlat=10) == expected
+
+
 def test_the_readme_order_taken_literally_would_match_nobody():
     """Why the axes are sorted: the README names the larger longitude "min"."""
     as_written = BoundingBox(min_lat=-46.361899, max_lat=-34.276938, min_lon=-2.196998, max_lon=-15.411580)
@@ -85,6 +91,7 @@ def test_the_edges_of_a_box_are_inside_and_the_next_point_is_outside(customer_ty
         pytest.param("-inf", "-10.0", id="infinite"),
         pytest.param("-400.0", "-10.0", id="latitude-out-of-range"),
         pytest.param([-40.0], {"lon": -10.0}, id="wrong-types"),
+        pytest.param(10**400, "-10.0", id="integer-too-large-for-a-float"),
     ],
 )
 def test_coordinates_that_are_missing_or_invalid_are_laborious(latitude, longitude):

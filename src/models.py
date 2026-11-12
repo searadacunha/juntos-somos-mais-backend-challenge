@@ -40,14 +40,19 @@ def _parse_utc(value: object) -> datetime:
     """Accept only an ISO 8601 date-time that carries its UTC offset, and convert it to UTC.
 
     Pydantic alone would also read a bare number as a Unix timestamp, which would
-    turn a shifted CSV column into a plausible looking date.
+    turn a shifted CSV column into a plausible looking date. Fractions of a second
+    are dropped: the contract has second resolution.
     """
     if not isinstance(value, str):
         raise ValueError("expected an ISO 8601 date-time string")
     parsed = datetime.fromisoformat(value.strip())
     if parsed.tzinfo is None:
         raise ValueError("the date-time has no UTC offset")
-    return parsed.astimezone(UTC)
+    try:
+        return parsed.astimezone(UTC).replace(microsecond=0)
+    except OverflowError:
+        # "0001-01-01T00:00:00+05:00" is valid ISO 8601 but falls before year 1 in UTC.
+        raise ValueError("the date-time is out of range once converted to UTC") from None
 
 
 # Serialised by pydantic as "1979-01-22T03:35:31Z", the format shown in the contract.
