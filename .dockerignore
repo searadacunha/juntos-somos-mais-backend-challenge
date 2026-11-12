@@ -1,0 +1,5 @@
+# The image only needs requirements.txt and src/. Everything else stays out of the build context.
+*
+!requirements.txt
+!src/
+**/__pycache__

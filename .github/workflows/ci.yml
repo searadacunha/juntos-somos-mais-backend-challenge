@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Lint and tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: ruff format --check .
+      # Offline: the two sources are replaced by an httpx mock transport.
+      - run: pytest --cov
+
+  image:
+    name: Docker image against the real sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build -t customers-api .
+
+      - name: Start the container
+        run: docker run -d --name api -p 8080:8080 --health-interval=2s customers-api
+
+      - name: Wait for the image's own health check
+        run: |
+          for attempt in $(seq 1 45); do
+            status=$(docker inspect --format '{{.State.Health.Status}}' api)
+            if [ "$status" = "healthy" ]; then exit 0; fi
+            sleep 2
+          done
+          echo "health status: $status"
+          exit 1
+
+      - name: Official validator, unchanged
+        run: |
+          ./validate.sh | tee validate.out
+          grep -qx "Response body is valid." validate.out
+
+      # validate.sh greps for "2000" anywhere in the body and always exits 0,
+      # so the total and the two paths are also checked strictly.
+      - name: Exact total on both paths, identical answers
+        run: |
+          for path in /users /api/v1/users; do
+            total=$(curl -fsS "http://localhost:8080${path}?pageNumber=1&pageSize=10" | jq '.totalCount')
+            echo "${path}: totalCount=${total}"
+            test "$total" = "2000"
+          done
+          readme_path=$(curl -fsS 'http://localhost:8080/users?pageSize=100&pageNumber=20' | jq -cS .)
+          validator_path=$(curl -fsS 'http://localhost:8080/api/v1/users?pageSize=100&pageNumber=20' | jq -cS .)
+          test "$(echo "$readme_path" | jq '.users | length')" = "100"
+          test "$readme_path" = "$validator_path"
+          curl -fsS http://localhost:8080/health
+
+      - name: The process is not root
+        run: test "$(docker exec api id -u)" != "0"
+
+      - name: A source that cannot be reached stops the container instead of serving partial data
+        run: |
+          if docker run --rm -e CSV_URL=http://127.0.0.1:9/missing.csv customers-api; then
+            echo "the container started without its CSV source"
+            exit 1
+          fi
+
+      - name: Container logs
+        if: always()
+        run: docker logs api

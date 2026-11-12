@@ -1,0 +1,11 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file:
+      - path: .env
+        required: false
+    # A failed load makes the process exit instead of serving partial data.
+    # Restarting it is the retry.
+    restart: on-failure
