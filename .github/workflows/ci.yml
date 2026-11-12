@@ -12,6 +12,7 @@ jobs:
   tests:
     name: Lint and tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -32,14 +33,16 @@ jobs:
   image:
     name: Docker image against the real sources
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      - run: docker compose config --quiet
       - run: docker build -t customers-api .
 
       - name: Start the container
         run: docker run -d --name api -p 8080:8080 --health-interval=2s customers-api
 
-      - name: Wait for the image's own health check
+      - name: Wait until the image's health check reports healthy (polled every 2 s here)
         run: |
           for attempt in $(seq 1 45); do
             status=$(docker inspect --format '{{.State.Health.Status}}' api)
@@ -69,15 +72,27 @@ jobs:
           test "$readme_path" = "$validator_path"
           curl -fsS http://localhost:8080/health
 
+      - name: Every customer against a second implementation of the rules
+        run: python3 tools/verify_live.py http://localhost:8080
+
       - name: The process is not root
         run: test "$(docker exec api id -u)" != "0"
 
-      - name: A source that cannot be reached stops the container instead of serving partial data
+      # The CSV is loaded first. Making the JSON unreachable checks the case where half
+      # of the data is already in memory: the process must still exit, with code 3.
+      - name: An unreachable source stops the container, even once the other one is loaded
         run: |
-          if docker run --rm -e CSV_URL=http://127.0.0.1:9/missing.csv customers-api; then
-            echo "the container started without its CSV source"
-            exit 1
-          fi
+          for source in CSV JSON; do
+            code=0
+            timeout 120 docker run --rm -e "${source}_URL=http://127.0.0.1:9/missing" customers-api \
+              > "unreachable-${source}.log" 2>&1 || code=$?
+            cat "unreachable-${source}.log"
+            echo "exit code with ${source} unreachable: ${code}"
+            test "$code" = "3"
+          done
+          grep -q "startup aborted: csv source: download failed with ConnectError" unreachable-CSV.log
+          grep -q "source=csv records=1000 accepted=1000 rejected=0" unreachable-JSON.log
+          grep -q "startup aborted: json source: download failed with ConnectError" unreachable-JSON.log
 
       - name: Container logs
         if: always()
