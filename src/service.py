@@ -102,6 +102,6 @@ def _transform(source: str, records: list[Any]) -> tuple[list[User], int]:
 def _reasons(exc: ValueError) -> str:
     """Name the fields at fault and the kind of error, never the values: logs hold no personal data."""
     if isinstance(exc, ValidationError):
-        errors = exc.errors(include_input=False)
+        errors = exc.errors()
         return ", ".join(f"{'.'.join(map(str, error['loc']))} ({error['type']})" for error in errors)
     return str(exc)

@@ -5,6 +5,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from src.config import settings
 from src.loaders import SourceError
 from src.main import create_app
 from tests.builders import (
@@ -200,6 +201,30 @@ def test_health_shows_rejected_records_and_they_are_never_served():
 
     assert listing.json()["totalCount"] == 12
     assert "broken@example.com" not in emails(listing)
+
+
+def test_no_log_line_shows_the_path_or_query_of_a_source_url(monkeypatch, caplog):
+    """httpx logs every request URL at INFO, and a signed URL keeps its secret in the query string."""
+    signed = settings.model_copy(
+        update={
+            "csv_url": "https://files.example.test/customers.csv?signature=SECRET-TOKEN",
+            "json_url": "https://files.example.test/customers.json?signature=SECRET-TOKEN",
+        }
+    )
+    monkeypatch.setattr("src.main.settings", signed)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=GOOD_CSV if request.url.path.endswith(".csv") else GOOD_JSON)
+
+    with (
+        caplog.at_level(logging.DEBUG),
+        TestClient(create_app(transport=httpx.MockTransport(handler))) as client,
+    ):
+        assert client.get("/health").json()["users"] == 12
+
+    assert "startup complete users=12" in caplog.text
+    assert "SECRET-TOKEN" not in caplog.text
+    assert "customers.csv" not in caplog.text
 
 
 def test_the_api_documents_itself(client):

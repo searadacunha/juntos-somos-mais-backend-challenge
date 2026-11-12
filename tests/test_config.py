@@ -1,7 +1,15 @@
+import os
+import subprocess
+import sys
+import textwrap
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
 from src.config import Settings
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_without_any_variable_the_official_sources_are_used():
@@ -47,6 +55,40 @@ def test_environment_variables_arrive_as_text_and_are_converted():
 def test_an_unusable_value_is_refused_and_the_error_names_the_variable(variable, value):
     with pytest.raises(ValidationError, match=variable):
         Settings.model_validate({variable: value})
+
+
+def test_the_environment_reaches_the_running_code():
+    """In a fresh process: the settings read os.environ, and the page limit and log level are used."""
+    script = textwrap.dedent(
+        """
+        import logging
+
+        from pydantic import ValidationError
+
+        import src.main
+        from src.config import settings
+        from src.models import UserQuery
+
+        print(settings.json_url, settings.http_timeout_seconds, logging.getLogger().level)
+        UserQuery.model_validate({"pageSize": 5})
+        try:
+            UserQuery.model_validate({"pageSize": 6})
+        except ValidationError:
+            print("pageSize=6 refused")
+        """
+    )
+    environment = {
+        **os.environ,
+        "JSON_URL": "http://localhost:9000/customers.json",
+        "HTTP_TIMEOUT_SECONDS": "2.5",
+        "MAX_PAGE_SIZE": "5",
+        "LOG_LEVEL": "DEBUG",
+    }
+    result = subprocess.run(
+        [sys.executable, "-c", script], cwd=ROOT, env=environment, capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == ["http://localhost:9000/customers.json 2.5 10", "pageSize=6 refused"]
 
 
 def test_a_refused_url_is_not_echoed_in_the_error():
