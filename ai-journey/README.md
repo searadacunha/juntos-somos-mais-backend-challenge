@@ -141,7 +141,7 @@ On the documents:
 | Real server on port 8080, official sources, official `validate.sh` | `Response body is valid.` |
 | `tools/verify_live.py` against that server | all checks passed: 2000 of 2000 customers, both paths, every filter |
 | Real server with an unreachable source | exit code 3, one CRITICAL line, no URL path or query string in the output |
-| CI on GitHub: lint and tests on 3.12, 3.13 and 3.14, image built and run against the real sources | runs on every push, results in the Actions tab of the repository |
+| [First CI run on GitHub](https://github.com/searadacunha/juntos-somos-mais-backend-challenge/actions/runs/43205324257): lint and tests on 3.12, 3.13 and 3.14, image built and run against the real sources | 4 jobs of 4 green. 343 passed on each version. In the container: `validate.sh` valid, `totalCount=2000` on both paths, `tools/verify_live.py` all checks passed, exit code 3 with the CSV unreachable, and with the JSON unreachable after the CSV had loaded. |
 
 The bug injection used throwaway scripts of the session, which are not in the
 repository.
