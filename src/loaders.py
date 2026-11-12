@@ -34,10 +34,45 @@ async def fetch(client: httpx.AsyncClient, url: str) -> str:
         raise SourceError("the body is not UTF-8 text") from exc
 
 
+# Columns of the partner CSV export. Without this check, a renamed column would turn
+# one field into nulls for every customer, and no record would be rejected.
+CSV_COLUMNS = (
+    "gender",
+    "name__title",
+    "name__first",
+    "name__last",
+    "location__street",
+    "location__city",
+    "location__state",
+    "location__postcode",
+    "location__coordinates__latitude",
+    "location__coordinates__longitude",
+    "location__timezone__offset",
+    "location__timezone__description",
+    "email",
+    "dob__date",
+    "dob__age",
+    "registered__date",
+    "registered__age",
+    "phone",
+    "cell",
+    "picture__large",
+    "picture__medium",
+    "picture__thumbnail",
+)
+
+
 def parse_csv(text: str) -> list[dict[str, Any]]:
-    """Parse the CSV export. A column named `name__first` becomes `{"name": {"first": ...}}`."""
+    """Parse the CSV export. A column named `name__first` becomes `{"name": {"first": ...}}`.
+
+    Every expected column must be in the header. Other columns are ignored.
+    """
     try:
-        return [_nest(row) for row in csv.DictReader(io.StringIO(text))]
+        reader = csv.DictReader(io.StringIO(text))
+        missing = [column for column in CSV_COLUMNS if column not in (reader.fieldnames or ())]
+        if missing:
+            raise SourceError(f"invalid CSV: missing columns {', '.join(missing)}")
+        return [_nest(row) for row in reader]
     except csv.Error as exc:
         raise SourceError(f"invalid CSV: {exc}") from exc
 
@@ -48,12 +83,12 @@ def _nest(row: dict[Any, Any]) -> dict[str, Any]:
         # right name. An empty record is returned so that validation rejects the row.
         return {}
     record: dict[str, Any] = {}
-    for column, value in row.items():
+    for column in CSV_COLUMNS:
         *parents, leaf = column.split("__")
         node = record
         for parent in parents:
             node = node.setdefault(parent, {})
-        node[leaf] = value
+        node[leaf] = row[column]
     return record
 
 
@@ -61,8 +96,8 @@ def parse_json(text: str) -> list[Any]:
     """Parse the JSON export: an object whose "results" key holds the list of records."""
     try:
         document = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise SourceError(f"invalid JSON: {exc.msg} (line {exc.lineno}, column {exc.colno})") from exc
+    except ValueError as exc:  # a JSONDecodeError, or an integer literal over Python's digit limit
+        raise SourceError(f"invalid JSON: {exc}") from exc
     results = document.get("results") if isinstance(document, dict) else None
     if not isinstance(results, list):
         raise SourceError('invalid JSON: expected an object with a "results" list')

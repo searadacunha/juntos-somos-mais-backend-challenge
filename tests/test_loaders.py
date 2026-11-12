@@ -1,12 +1,13 @@
 import asyncio
 import json
+import re
 import traceback
 
 import httpx
 import pytest
 
 from src.loaders import SourceError, fetch, parse_csv, parse_json
-from tests.builders import csv_body, json_body, raw_record
+from tests.builders import CSV_COLUMNS, csv_body, json_body, raw_record
 
 URL = "https://files.example.test/customers.csv?signature=SECRET-TOKEN"
 
@@ -102,24 +103,49 @@ def test_parse_csv_keeps_the_rows_in_file_order():
     ]
 
 
+HEADER = ",".join(CSV_COLUMNS) + "\r\n"
+
+
 def test_parse_csv_with_only_a_header_has_no_record():
     assert parse_csv(decoded_csv([])) == []
-    assert parse_csv("") == []
+
+
+@pytest.mark.parametrize(
+    ("header", "missing"),
+    [
+        pytest.param("", ", ".join(CSV_COLUMNS), id="empty-file"),
+        pytest.param(HEADER.replace(",cell,", ","), "cell", id="one-column-missing"),
+        pytest.param(HEADER.replace("gender,", "sex,"), "gender", id="one-column-renamed"),
+        pytest.param("id,label\r\n1,one\r\n", ", ".join(CSV_COLUMNS), id="another-file"),
+    ],
+)
+def test_parse_csv_refuses_a_header_without_every_expected_column(header, missing):
+    with pytest.raises(SourceError, match=re.escape(f"invalid CSV: missing columns {missing}")):
+        parse_csv(header)
+
+
+def test_parse_csv_ignores_columns_it_does_not_know():
+    """Even one that collides with a nested name, such as `name` next to `name__first`."""
+    plain = decoded_csv([raw_record()])
+    header, row = plain.splitlines()
+    assert parse_csv(f"{header},name,source\r\n{row},ione,partner\r\n") == parse_csv(plain)
 
 
 def test_parse_csv_marks_the_cells_of_a_short_row_as_missing():
-    [parsed] = parse_csv("gender,email,phone\r\nmale,a@example.com\r\n")
-    assert parsed == {"gender": "male", "email": "a@example.com", "phone": None}
+    [parsed] = parse_csv(HEADER + "male,mr\r\n")
+    assert (parsed["gender"], parsed["name"]["title"]) == ("male", "mr")
+    assert parsed["name"]["first"] is None
+    assert parsed["picture"]["thumbnail"] is None
 
 
 def test_parse_csv_empties_a_row_with_more_cells_than_columns():
     """Its values may sit under the wrong names, so nothing of it is kept."""
-    assert parse_csv("gender,email\r\nmale,a@example.com,unexpected\r\n") == [{}]
+    assert parse_csv(HEADER + ",".join(["x"] * (len(CSV_COLUMNS) + 1)) + "\r\n") == [{}]
 
 
 def test_parse_csv_reports_text_that_is_not_csv():
-    with pytest.raises(SourceError, match="invalid CSV"):
-        parse_csv('gender,email\r\n"male,a@example.com\r\n' + "x" * 200_000)
+    with pytest.raises(SourceError, match="invalid CSV: field larger than field limit"):
+        parse_csv(HEADER + '"male,a@example.com\r\n' + "x" * 200_000)
 
 
 # --- JSON ---------------------------------------------------------------------
@@ -136,6 +162,8 @@ def test_parse_json_returns_the_results_list():
         pytest.param("", id="empty-body"),
         pytest.param('{"results": [', id="truncated"),
         pytest.param("<html>Service unavailable</html>", id="html-error-page"),
+        # json.loads raises a plain ValueError here, not a JSONDecodeError.
+        pytest.param('{"results": [' + "1" * 5000 + "]}", id="integer-over-the-digit-limit"),
     ],
 )
 def test_parse_json_reports_text_that_is_not_json(text):

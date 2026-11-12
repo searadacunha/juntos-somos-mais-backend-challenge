@@ -89,7 +89,7 @@ def test_a_customer_present_in_both_files_is_kept_twice():
         pytest.param(
             b"id,label\r\n1,one\r\n2,two\r\n",
             GOOD_JSON,
-            "csv source: no usable record out of 2",
+            "csv source: invalid CSV: missing columns gender, name__title",
             id="csv-has-other-columns",
         ),
     ],
