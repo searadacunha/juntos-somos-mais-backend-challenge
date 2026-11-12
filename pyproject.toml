@@ -1,0 +1,47 @@
+[project]
+name = "juntos-somos-mais-backend-challenge"
+version = "1.0.0"
+description = "Customer API for the Juntos Somos Mais backend challenge"
+readme = "README.md"
+requires-python = ">=3.12"
+# Top-level dependencies only. The exact versions that were tested, including
+# transitive ones, are pinned in requirements.txt and requirements-dev.txt.
+dependencies = [
+    "fastapi>=0.162,<0.163",
+    "httpx>=0.28,<0.29",
+    "pydantic>=2.14,<3",
+    "uvicorn>=0.54,<0.55",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Starlette 1.10 runs its TestClient on httpx2 and deprecates httpx there. The
+    # application itself only uses httpx; httpx2 is needed by the test client alone.
+    "httpx2>=2.16,<3",
+    "pytest>=9.2,<10",
+    "pytest-cov>=7.1,<8",
+    "ruff>=0.17,<0.18",
+]
+
+[tool.pytest]
+minversion = "9.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = ["-ra", "--import-mode=importlib"]
+strict = true
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 95
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "C4", "PT", "RET", "RUF"]
