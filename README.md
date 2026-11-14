@@ -1,5 +1,7 @@
 # Juntos Somos Mais backend challenge
 
+<p align="center"><img src="assets/readme-hero.svg" width="100%" alt="juntos-somos-mais-backend-challenge project banner" /></p>
+
 A small REST API for the [Juntos Somos Mais backend challenge](https://github.com/juntossomosmais/backend-challenge).
 At startup it downloads two customer files (one CSV, one JSON), applies the business
 rules, keeps the result in memory and serves it with filters and pagination.
