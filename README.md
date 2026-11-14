@@ -15,7 +15,7 @@ Python, FastAPI, httpx, pydantic. No database.
 | Every served customer against a second implementation of the rules (`tools/verify_live.py`) | 2000 of 2000 identical, on both paths, with every filter |
 | By type | 4 special, 4 normal, 1992 laborious |
 | By region | norte 506, nordeste 660, centro-oeste 316, sudeste 306, sul 212 |
-| Tests | 343, offline, under one second, 100 % line and branch coverage (CI fails below 100 %) |
+| Tests | 345, offline, under one second, 100 % line and branch coverage (CI fails below 100 %) |
 
 ## Run it
 
