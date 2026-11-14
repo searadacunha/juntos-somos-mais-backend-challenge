@@ -69,7 +69,11 @@ def parse_csv(text: str) -> list[dict[str, Any]]:
     """
     try:
         reader = csv.DictReader(io.StringIO(text))
-        missing = [column for column in CSV_COLUMNS if column not in (reader.fieldnames or ())]
+        columns = reader.fieldnames or ()
+        # DictReader silently keeps the last value for a duplicated header.
+        if len(columns) != len(set(columns)):
+            raise SourceError("invalid CSV: duplicate column names")
+        missing = [column for column in CSV_COLUMNS if column not in columns]
         if missing:
             raise SourceError(f"invalid CSV: missing columns {', '.join(missing)}")
         return [_nest(row) for row in reader]
