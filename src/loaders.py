@@ -65,7 +65,8 @@ CSV_COLUMNS = (
 def parse_csv(text: str) -> list[dict[str, Any]]:
     """Parse the CSV export. A column named `name__first` becomes `{"name": {"first": ...}}`.
 
-    Every expected column must be in the header. Other columns are ignored.
+    Every expected column must be in the header. Other columns are ignored, but no column
+    name, an empty one included, may appear twice: a repeated name refuses the CSV.
     """
     try:
         reader = csv.DictReader(io.StringIO(text))

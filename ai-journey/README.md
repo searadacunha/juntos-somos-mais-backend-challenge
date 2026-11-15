@@ -94,7 +94,9 @@ On the code:
   tests.
 - `json.loads` raises a plain `ValueError` for an integer of more than 4300 digits,
   and a CSV header with both `name` and `name__first` raised a `TypeError`. Both
-  escaped the error contract of the loaders. Fixed.
+  escaped the error contract of the loaders. Fixed. (An audit on 2026-11-15 changed the
+  first fix: such an integer now rejects only its record, as decided for a wrong type,
+  and a JSON nested deeper than the parser allows is refused as invalid JSON.)
 - A CSV with a renamed column started as healthy, with `null` in that field for every
   customer. The CSV header is now checked. The same drift in the JSON file is
   documented as a limit.
@@ -107,7 +109,8 @@ On the code:
   the contract has second resolution.
 - Documented rather than changed: a repeated query parameter keeps its last value, a
   download has no overall deadline, there is no rejection threshold.
-- Left as it is: pydantic reads a JSON `true` postcode as 1.
+- Left as it is then, fixed on 2026-11-15: pydantic read a JSON `true` postcode as 1;
+  it now rejects its record.
 
 On the documents:
 
@@ -138,6 +141,7 @@ On the documents:
 | The state before the review, in a fresh clone, on Python 3.12.16 and 3.13.1 | 322 passed on each. The final state was not re-run locally: the clone was refused by a disk-space guard of the development machine, and CI runs the three versions instead. |
 | `ruff check` and `ruff format --check` | clean |
 | Bugs injected one at a time into copies of the code: 45 before the review, 14 after | 58 of 59 caught. The survivor changes nothing observable. |
+| Independent audit on 2026-11-15: 11 other one-line bugs, injected the same way | 2 of 11 caught at first. With the tests of `tests/test_regressions.py`, 10 of 11; the survivor removes one log line. |
 | Real server on port 8080, official sources, official `validate.sh` | `Response body is valid.` |
 | `tools/verify_live.py` against that server | all checks passed: 2000 of 2000 customers, both paths, every filter |
 | Real server with an unreachable source | exit code 3, one CRITICAL line, no URL path or query string in the output |

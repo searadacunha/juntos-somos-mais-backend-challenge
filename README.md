@@ -15,7 +15,7 @@ Python, FastAPI, httpx, pydantic. No database.
 | Every served customer against a second implementation of the rules (`tools/verify_live.py`) | 2000 of 2000 identical, on both paths, with every filter |
 | By type | 4 special, 4 normal, 1992 laborious |
 | By region | norte 506, nordeste 660, centro-oeste 316, sudeste 306, sul 212 |
-| Tests | 345, offline, under one second, 100 % line and branch coverage (CI fails below 100 %) |
+| Tests | 357, offline, under one second, 100 % line and branch coverage (CI fails below 100 %) |
 
 ## Run it
 
@@ -149,8 +149,9 @@ The short version. The measurements and the alternatives are in
    format and refuses to guess.
 3. **The two files hold the same 1000 customers.** The validator expects 2000, so the
    merge is a concatenation. The total is never written in the code.
-4. **All or nothing at startup.** If one source cannot be downloaded or parsed, or
-   the CSV header lacks an expected column, the process exits with an error instead
+4. **All or nothing at startup.** If one source cannot be downloaded or parsed, the
+   CSV header lacks an expected column or repeats a column name (an empty one included),
+   or every record of a source is rejected, the process exits with an error instead
    of serving the other half.
 5. **One strict output contract.** A record that cannot fill it is rejected, counted,
    logged without its values and reported by `/health`.
@@ -188,7 +189,7 @@ Every variable is optional. See `.env.example`.
 | `CSV_URL` | the official CSV | first source, http or https |
 | `JSON_URL` | the official JSON | second source, http or https |
 | `HTTP_TIMEOUT_SECONDS` | `10` | timeout of each phase of a download (connect, read, write, pool) |
-| `MAX_PAGE_SIZE` | `100` | largest `pageSize` accepted |
+| `MAX_PAGE_SIZE` | `100` | largest `pageSize` accepted; the default page is 10, or `MAX_PAGE_SIZE` when smaller |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` |
 
 A value that cannot be used stops the process at import time with an error that

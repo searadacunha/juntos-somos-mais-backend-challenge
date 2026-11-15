@@ -223,9 +223,15 @@ business decision that the challenge does not make.
 A fallback can hide a change in the shape of a file. If a partner renamed the
 `gender` column, every customer would get `null` and no record would be rejected.
 The CSV is protected against that: its header must contain the 22 expected columns,
-or the source is refused (other columns are ignored). The JSON file has no header,
-so a key renamed in every record would go unnoticed for the fields that have a
-fallback. This is a known limit.
+or the source is refused (other columns are ignored, but no column name, an empty one
+included, may appear twice). The JSON file has no header, so a key renamed in every
+record would go unnoticed for the fields that have a fallback. This is a known limit,
+like a key repeated inside one JSON record, which keeps its last value.
+
+A JSON integer longer than Python accepts (4300 digits) stays text, so it rejects its
+record like any wrong type, or is dropped with its field; a JSON `true` postcode rejects
+its record instead of being read as 1. A JSON document nested deeper than the parser
+allows refuses the source as invalid JSON.
 
 ## 6. Dates
 
