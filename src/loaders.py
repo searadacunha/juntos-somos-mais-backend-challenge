@@ -96,11 +96,20 @@ def _nest(row: dict[Any, Any]) -> dict[str, Any]:
     return record
 
 
+def _int_or_text(literal: str) -> int | str:
+    """An integer literal over Python's digit limit stays text, so that only its record is
+    affected: the field is dropped by the rules or the record is rejected, as for any wrong type."""
+    try:
+        return int(literal)
+    except ValueError:
+        return literal
+
+
 def parse_json(text: str) -> list[Any]:
     """Parse the JSON export: an object whose "results" key holds the list of records."""
     try:
-        document = json.loads(text)
-    except ValueError as exc:  # a JSONDecodeError, or an integer literal over Python's digit limit
+        document = json.loads(text, parse_int=_int_or_text)
+    except (ValueError, RecursionError) as exc:  # a JSONDecodeError, or nesting deeper than the stack
         raise SourceError(f"invalid JSON: {exc}") from exc
     results = document.get("results") if isinstance(document, dict) else None
     if not isinstance(results, list):

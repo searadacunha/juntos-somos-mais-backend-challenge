@@ -162,13 +162,16 @@ def test_parse_json_returns_the_results_list():
         pytest.param("", id="empty-body"),
         pytest.param('{"results": [', id="truncated"),
         pytest.param("<html>Service unavailable</html>", id="html-error-page"),
-        # json.loads raises a plain ValueError here, not a JSONDecodeError.
-        pytest.param('{"results": [' + "1" * 5000 + "]}", id="integer-over-the-digit-limit"),
     ],
 )
 def test_parse_json_reports_text_that_is_not_json(text):
     with pytest.raises(SourceError, match="invalid JSON"):
         parse_json(text)
+
+
+def test_parse_json_keeps_an_integer_over_the_digit_limit_as_text():
+    """Valid JSON that Python will not turn into an int: only the record holding it is affected."""
+    assert parse_json('{"results": [' + "1" * 5000 + "]}") == ["1" * 5000]
 
 
 @pytest.mark.parametrize(

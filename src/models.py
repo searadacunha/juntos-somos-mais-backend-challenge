@@ -90,12 +90,19 @@ class Timezone(Contract):
     description: str
 
 
+def _not_a_boolean(value: object) -> object:
+    """Pydantic reads a JSON `true` as the integer 1: a boolean is a wrong type, the record is rejected."""
+    if isinstance(value, bool):
+        raise ValueError("expected an integer, not a boolean")
+    return value
+
+
 class Location(Contract):
     region: Region | None  # None when the state is not a known Brazilian state
     street: str
     city: str
     state: str
-    postcode: int
+    postcode: Annotated[int, BeforeValidator(_not_a_boolean)]
     coordinates: Coordinates
     timezone: Timezone
 
@@ -143,7 +150,7 @@ class UserQuery(BaseModel):
     type: CustomerType | None = Field(None, description="Keep only the customers of this classification.")
     page_number: int = Field(1, alias="pageNumber", ge=1, description="Page to return. The first page is 1.")
     page_size: int = Field(
-        DEFAULT_PAGE_SIZE,
+        min(DEFAULT_PAGE_SIZE, settings.max_page_size),  # the default page never exceeds MAX_PAGE_SIZE
         alias="pageSize",
         ge=1,
         le=settings.max_page_size,
